@@ -297,7 +297,6 @@ client.on(Events.GuildCreate, async guild => {
 })
 
 async function buttonHandler(interaction) {
-    console.log('button clicked')
     let customId = interaction.customId;
     let customIdArray = customId.split('-');
     let type = customIdArray[0];
@@ -308,8 +307,6 @@ async function buttonHandler(interaction) {
     if (type == 'test') {
         return;
     }
-    console.log(customId)
-    console.log(type, team, matchupId, week, userId);
 
     if (type == 'vote') {
         let reactionMap = await getReactionMap(interaction.guild);

@@ -58,7 +58,6 @@ async function disableMessage(messageId, channel) {
         emoji: button1.data.emoji,
         disabled: true
     });
-    console.log(newButton1)
     let newButton2 = new ButtonBuilder({
         custom_id: button2.data.custom_id,
         style: ButtonStyle.Secondary,
@@ -66,7 +65,7 @@ async function disableMessage(messageId, channel) {
         emoji: button2.data.emoji,
         disabled: true
     });
-    message.edit({
+    await message.edit({
         components: [
             new ActionRowBuilder().addComponents(newButton1, newButton2)
         ]
