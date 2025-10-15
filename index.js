@@ -408,3 +408,8 @@ async function buttonHandler(interaction) {
 
 // Log in to Discord with your client's token
 client.login(token);
+
+const express = require("express");
+const app = express();
+app.get("/", (req, res) => res.send("Bot is alive!"));
+app.listen(process.env.PORT || 3000, () => console.log("Web server running"));
