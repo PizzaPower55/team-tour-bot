@@ -1,11 +1,14 @@
-const { ChannelType, GatewayIntentBits, PermissionFlagsBits } = require('discord.js');
+const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const fs = require('node:fs');
 
-exports.initNewServer = async function initNewServer (guild, client) {
+// -------------------------
+// Server Initialization
+// -------------------------
+exports.initNewServer = async function initNewServer(guild, client) {
     const directory = `./data/${guild.id}`;
     try {
         if (!fs.existsSync(directory)) {
-          fs.mkdirSync(directory);
+            fs.mkdirSync(directory, { recursive: true });
         }
     } catch (err) {
         console.error(err);
@@ -14,26 +17,16 @@ exports.initNewServer = async function initNewServer (guild, client) {
     await createDefaultChannels(guild, client);
 }
 
-// TODO: default permissions
-createDefaultChannels = async function createDefaultChannels (guild, client) {
+// Creates default channels and sets initial settings
+async function createDefaultChannels(guild, client) {
     let adminRole = await guild.roles.create({ name: "Pick'em Admin" });
     let privatePermissionOverwrites = [
-        {
-            id: guild.id,
-            deny: [PermissionFlagsBits.ViewChannel],
-        },
-        {
-            id: adminRole.id,
-            allow: [PermissionFlagsBits.ViewChannel],
-        },
-    ]
+        { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: adminRole.id, allow: [PermissionFlagsBits.ViewChannel] },
+    ];
     let publicPermissionOverwrites = [
-        {
-            id: guild.id,
-            allow: [PermissionFlagsBits.ViewChannel],
-            deny: [PermissionFlagsBits.SendMessages]
-        },
-    ]
+        { id: guild.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] },
+    ];
 
     let category = await guild.channels.create({ name: 'pickems', type: ChannelType.GuildCategory });
     let consoleC = await guild.channels.create({
@@ -41,7 +34,6 @@ createDefaultChannels = async function createDefaultChannels (guild, client) {
         type: ChannelType.GuildText,
         parent: category,
         permissionOverwrites: privatePermissionOverwrites,
-        
     });
     let matchups = await guild.channels.create({
         name: 'matchups',
@@ -72,7 +64,7 @@ createDefaultChannels = async function createDefaultChannels (guild, client) {
         permissionOverwrites: privatePermissionOverwrites
     });
 
-    // init settings
+    // Init settings
     let settingsObject = {
         weeks: [],
         guildId: guild.id,
@@ -82,188 +74,117 @@ createDefaultChannels = async function createDefaultChannels (guild, client) {
         settingsChannelId: settings.id,
         pickemsMatchupCategoryId: pickemsMatchupCategory.id,
         pickemsMatchupArchiveCategoryId: pickemsMatchupArchiveCategory.id,
-    }
+    };
 
     await module.exports.setSettings(guild, settingsObject);
     await module.exports.writeToSettingsServer(client, guild, settingsObject);
 }
 
-exports.writeToSettingsServer = async function writeToSettingsServer(client, guild, settings) {
-    let settingsString = JSON.stringify(settings, module.exports.replacer);
-    let text= "```" + prettyJson(settingsString) + "```";
-    let channel = client.channels.cache.get(await module.exports.getSettingsChannelId(guild));
-	await channel.messages.fetch({ limit: 1 }).then(async messages => {
-		if (messages.size == 0) {
-			await channel.send(text);
-			return;
-		}
-		let messageArray = Array.from(messages.values());
-		await messageArray[0].edit(text);
-	});
-}
-
-exports.initFiles = async function initFiles (guild) {
+// -------------------------
+// File I/O
+// -------------------------
+exports.initFiles = async function initFiles(guild) {
     const directory = `./data/${guild.id}`;
-    const reactionMapFile = `${directory}/reactionMap.json`;
-    const matchupsFile = `${directory}/matchups.json`;
-    const settingsFile = `${directory}/settings.json`;
-    const lastMatchupMessagesFile = `${directory}/lastMatchupMessages.json`;
-    const weeksFile = `${directory}/weeks.json`;
+    const files = {
+        reactionMap: `${directory}/reactionMap.json`,
+        matchups: `${directory}/matchups.json`,
+        settings: `${directory}/settings.json`,
+        lastMatchupMessages: `${directory}/lastMatchupMessages.json`,
+        weeks: `${directory}/weeks.json`
+    };
+
     try {
-        if (!fs.existsSync(reactionMapFile)) {
-          module.exports.setReactionMap(guild, new Map());
-        }
-        if (!fs.existsSync(matchupsFile)) {
-          module.exports.setMatchups(guild, new Map());
-        }
-        if (!fs.existsSync(settingsFile)) {
-          module.exports.setSettings(guild, {});
-        }
-        if (!fs.existsSync(lastMatchupMessagesFile)) {
-          module.exports.setLastMatchupMessage(guild, {});
-        }
-        if (!fs.existsSync(weeksFile)) {
-          module.exports.setWeeks(guild, []);
-        }
+        if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
+
+        if (!fs.existsSync(files.reactionMap)) await module.exports.setReactionMap(guild, new Map());
+        if (!fs.existsSync(files.matchups)) await module.exports.setMatchups(guild, new Map());
+        if (!fs.existsSync(files.settings)) await module.exports.setSettings(guild, {});
+        if (!fs.existsSync(files.lastMatchupMessages)) await module.exports.setLastMatchupMessage(guild, {});
+        if (!fs.existsSync(files.weeks)) await module.exports.setWeeks(guild, []);
     } catch (err) {
         console.error(err);
     }
-}
+};
 
 exports.getObjectFromFile = async function getObjectFromFile(filePath) {
-    return new Promise(async (resolve, reject) => {
-        await fs.readFile(filePath, 'utf8', async (err, data) => {
-            if (err){
-                reject(err);
-            } else {
-                if (data == '') {
-                    resolve(null);
-                    return;
-                }
-                object = JSON.parse(data, module.exports.reviver);
-                resolve(object);
+    return new Promise((resolve, reject) => {
+        fs.readFile(filePath, 'utf8', (err, data) => {
+            if (err) return reject(err);
+            if (!data) return resolve(null);
+            try {
+                const obj = JSON.parse(data, module.exports.reviver);
+                resolve(obj);
+            } catch (e) {
+                reject(e);
             }
         });
     });
-}
+};
 
 exports.writeObjectToFile = async function writeObjectToFile(filePath, object) {
-    return new Promise(async (resolve, reject) => {
-        let objectString = JSON.stringify(object, module.exports.replacer);
-        await fs.writeFile(filePath, objectString, (err) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve();
-            }
+    return new Promise((resolve, reject) => {
+        const str = JSON.stringify(object, module.exports.replacer, 2);
+        fs.writeFile(filePath, str, (err) => {
+            if (err) reject(err);
+            else resolve();
         });
     });
-}
+};
 
+// JSON Map support
 exports.replacer = function replacer(key, value) {
-    if(value instanceof Map) {
-      return {
-        dataType: 'Map',
-        value: Array.from(value.entries()), // or with spread: value: [...value]
-      };
-    } else {
-      return value;
-    }
-}
+    if (value instanceof Map) return { dataType: 'Map', value: Array.from(value.entries()) };
+    return value;
+};
 
 exports.reviver = function reviver(key, value) {
-    if(typeof value === 'object' && value !== null) {
-        if (value.dataType === 'Map') {
-        return new Map(value.value);
-        }
-    }
+    if (value && value.dataType === 'Map') return new Map(value.value);
     return value;
-}
+};
 
+// -------------------------
+// CRUD Functions
+// -------------------------
+exports.getReactionMap = async (guild) => module.exports.getObjectFromFile(`./data/${guild.id}/reactionMap.json`);
+exports.getMatchups = async (guild) => module.exports.getObjectFromFile(`./data/${guild.id}/matchups.json`);
+exports.getSettings = async (guild) => module.exports.getObjectFromFile(`./data/${guild.id}/settings.json`);
+exports.getWeeks = async (guild) => module.exports.getObjectFromFile(`./data/${guild.id}/weeks.json`);
+exports.getLastMatchupMessage = async (guild) => module.exports.getObjectFromFile(`./data/${guild.id}/lastMatchupMessages.json`);
 
-// CRUD
-exports.getLastMatchupMessage = async function getLastMatchupMessage(guild) {
-    let lastMatchupMessages = await module.exports.getObjectFromFile(`./data/${guild.id}/lastMatchupMessages.json`);
-    return lastMatchupMessages;
-}
+exports.setReactionMap = async (guild, obj) => module.exports.writeObjectToFile(`./data/${guild.id}/reactionMap.json`, obj);
+exports.setMatchups = async (guild, obj) => module.exports.writeObjectToFile(`./data/${guild.id}/matchups.json`, obj);
+exports.setSettings = async (guild, obj) => module.exports.writeObjectToFile(`./data/${guild.id}/settings.json`, obj);
+exports.setWeeks = async (guild, obj) => module.exports.writeObjectToFile(`./data/${guild.id}/weeks.json`, obj);
+exports.setLastMatchupMessage = async (guild, obj) => module.exports.writeObjectToFile(`./data/${guild.id}/lastMatchupMessages.json`, obj);
 
-exports.getMatchups = async function getMatchups(guild) {
-    let matchups = await module.exports.getObjectFromFile(`./data/${guild.id}/matchups.json`);
-    return matchups;
-}
+// -------------------------
+// Channel ID getters
+// -------------------------
+exports.getMatchupsChannelId = async (guild) => (await module.exports.getSettings(guild))?.matchupsChannelId;
+exports.getLeaderboardChannelId = async (guild) => (await module.exports.getSettings(guild))?.leaderboardChannelId;
+exports.getConsoleChannelId = async (guild) => (await module.exports.getSettings(guild))?.consoleChannelId;
+exports.getSettingsChannelId = async (guild) => (await module.exports.getSettings(guild))?.settingsChannelId;
+exports.getPickemsMatchupCategoryId = async (guild) => (await module.exports.getSettings(guild))?.pickemsMatchupCategoryId;
 
-exports.getReactionMap = async function getReactionMap(guild) {
-    let reactionMap = await module.exports.getObjectFromFile(`./data/${guild.id}/reactionMap.json`);
-    return reactionMap;
-}
+// -------------------------
+// Other helpers
+// -------------------------
+exports.writeToSettingsServer = async function writeToSettingsServer(client, guild, settings) {
+    const text = "```" + JSON.stringify(settings, null, 2) + "```";
+    const channelId = await module.exports.getSettingsChannelId(guild);
+    const channel = client.channels.cache.get(channelId);
+    if (!channel) return;
+    await channel.messages.fetch({ limit: 1 }).then(async messages => {
+        if (messages.size === 0) {
+            await channel.send(text);
+        } else {
+            const msg = Array.from(messages.values())[0];
+            await msg.edit(text);
+        }
+    });
+};
 
-exports.getSettings = async function getSettings(guild) {
-    let settings = await module.exports.getObjectFromFile(`./data/${guild.id}/settings.json`);
-    return settings;
-}
-
-exports.getWeeks = async function getWeeks(guild) {
-    let weeks = await module.exports.getObjectFromFile(`./data/${guild.id}/weeks.json`);
-    return weeks;
-}
-
-// exports.getForcedVotes = async function getForcedVotes(guild) {
-//     let forcedVotes = await module.exports.getObjectFromFile(`./data/${guild.id}/forcedVotes.json`);
-//     return forcedVotes;
-// }
-
-exports.setLastMatchupMessage = async function setLastMatchupMessage(guild, lastMatchupMessages) {
-    await module.exports.writeObjectToFile(`./data/${guild.id}/lastMatchupMessages.json`, lastMatchupMessages);
-}
-
-exports.setMatchups = async function setMatchups(guild, matchups) {
-    await module.exports.writeObjectToFile(`./data/${guild.id}/matchups.json`, matchups);
-}
-
-exports.setReactionMap = async function setReactionMap(guild, reactionMap) {
-    await module.exports.writeObjectToFile(`./data/${guild.id}/reactionMap.json`, reactionMap);
-}
-
-exports.setSettings = async function setSettings(guild, settings) {
-    await module.exports.writeObjectToFile(`./data/${guild.id}/settings.json`, settings);
-}
-
-exports.setWeeks = async function setWeeks(guild, weeks) {
-    await module.exports.writeObjectToFile(`./data/${guild.id}/weeks.json`, weeks);
-}
-
-// exports.setForcedVotes = async function setForcedVotes(guild, forcedVotes) {
-//     await module.exports.writeObjectToFile(`./data/${guild.id}/forcedVotes.json`, forcedVotes);
-// }
-
-// config IDs
-exports.getMatchupsChannelId = async function getMatchupsChannelId(guild) {
-    let settings = await module.exports.getSettings(guild);
-    console.log(settings)
-    return settings.matchupsChannelId;
-}
-
-exports.getLeaderboardChannelId = async function getLeaderboardChannelId(guild) {
-    let settings = await module.exports.getSettings(guild);
-    return settings.leaderboardChannelId;
-}
-
-exports.getConsoleChannelId = async function getConsoleChannelId(guild) {
-    let settings = await module.exports.getSettings(guild);
-    return settings.consoleChannelId;
-}
-
-exports.getSettingsChannelId = async function getSettingsChannelId(guild) {
-    let settings = await module.exports.getSettings(guild);
-    return settings.settingsChannelId;
-}
-
-exports.getPickemsMatchupCategoryId = async function getPickemsMatchupCategoryId(guild) {
-    let settings = await module.exports.getSettings(guild);
-    return settings.pickemsMatchupCategoryId;
-}
-
-prettyJson = function prettyJson(jsonString, map=false) {
-    let json = JSON.parse(jsonString);
+function prettyJson(jsonString) {
+    const json = JSON.parse(jsonString);
     return JSON.stringify(json, null, 2);
 }
