@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { matchUpsId } = require('./../../config.json');
+//const { matchUpsId } = require('./../../config.json');
 const { getObjectFromFile, writeObjectToFile, getWeeks, getReactionMap, setReactionMap, getMatchupsChannelId, getSettings, setSettings } = require('./../../modules/database.module.js');
 const { updateSetting } = require('../../modules/functions.module');
 const { getPlayerVotes, createMessageArray } = require('../../modules/output.module');
