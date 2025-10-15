@@ -13,7 +13,7 @@ const {
     ButtonBuilder,
     ButtonStyle
 } = require('discord.js');
-const { token } = require('./config.json');
+const token = process.env.DISCORD_TOKEN;
 const { setMatchupWinner, getScores, prettyJson, writeScoresToLeaderboard, validWeek } = require('./modules/functions.module.js');
 const { initNewServer, writeObjectToFile, replacer, setLastMatchupMessage, getMatchupsChannelId, getConsoleChannelId, getReactionMap, getMatchups, setReactionMap } = require('./modules/database.module.js');
 
